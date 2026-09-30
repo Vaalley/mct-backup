@@ -3,21 +3,19 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"golang.org/x/oauth2"
 	"os"
 	"path/filepath"
 )
 
 type Config struct {
-	Version      int           `json:"version"`
-	ClientID     string        `json:"client_id,omitempty"`
-	ClientSecret string        `json:"client_secret,omitempty"`
-	Token        *oauth2.Token `json:"token,omitempty"`
-	FolderID     string        `json:"folder_id,omitempty"`
-	LocalRepo    string        `json:"local_repository,omitempty"`
-	Key          string        `json:"recovery_key,omitempty"`
-	Source       string        `json:"source"`
-	Timezone     string        `json:"timezone"`
+	Version   int    `json:"version"`
+	AuthID    string `json:"auth_id,omitempty"`
+	OAuthURL  string `json:"oauth_url,omitempty"`
+	FolderID  string `json:"folder_id,omitempty"`
+	LocalRepo string `json:"local_repository,omitempty"`
+	Key       string `json:"recovery_key,omitempty"`
+	Source    string `json:"source"`
+	Timezone  string `json:"timezone"`
 }
 
 func DefaultDir() (string, error) {

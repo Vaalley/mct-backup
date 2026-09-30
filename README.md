@@ -31,47 +31,38 @@ every example can use `mct-backup` instead of `./mct-backup`.
 
 ## Google Drive login
 
-`mct-backup login` guides setup, opens the system browser, requests access only to
-files created/opened with this application (`drive.file`), and creates or reconnects
-to the `mct-backup` Drive folder. Access tokens refresh automatically for scheduled
-backups. Authentication uses a loopback callback with PKCE and state validation.
-
-Google requires a registered OAuth **Desktop app** client. This source build does
-not contain an OAuth identity. On first login the wizard explains how to enable
-the Drive API, configure the consent screen, and download the client JSON, then
-asks for its path. You can also provide it directly:
+`mct-backup login` opens Duplicati's hosted Google sign-in page, which requests
+the `drive.file` scope. Sign in with Google; the page shows an AuthID to copy and
+paste into the command. Access tokens refresh automatically for scheduled backups.
+The Google consent screen identifies Duplicati.
 
 ```sh
-mct-backup login --credentials ~/Downloads/client_secret.json
+mct-backup login --auth-id keyid:password
 ```
 
-The publisher can configure `MCT_BACKUP_CLIENT_ID` and
-`MCT_BACKUP_CLIENT_SECRET`, or embed its own desktop client at build time with Go
-linker variables `mct-backup/internal/auth.DefaultClientID` and
-`mct-backup/internal/auth.DefaultClientSecret`. Then the user's first command goes
-straight to browser consent. Desktop client secrets are not a substitute for PKCE
-or user consent. No other application's OAuth client is borrowed.
-
-For an external app in Google's **Testing** state, refresh tokens can expire
-after seven days. For unattended operation, configure Production publishing
-status and complete any requirements Google presents. The same OAuth client
-must be used when recovering the repository with `drive.file` access.
+Duplicati's service sees access tokens and, with v2 AuthIDs, the refresh token.
+The service could list or delete the Drive files, but cannot read their contents
+because backup data is encrypted client-side. The service rate-limits requests
+per key.
 
 ### Login on the SSH server
 
 ```sh
-mct-backup login --no-browser --ssh-host root@nb24cdc.mevnode.com
+mct-backup login --no-browser
 ```
 
-The command prints an SSH tunnel command and a Google URL. Run the tunnel in a
-second terminal on your computer, keep it open, then open the URL in your local
-browser. The callback is forwarded to the loopback listener on the server. Login
-times out after five minutes. This does not use Google's deprecated manual-code
-flow. SSH sessions are detected automatically.
+The command prints Duplicati's login URL, so no SSH tunnel is needed. SSH sessions
+are detected automatically; `--no-browser` prints the URL instead of opening it.
+For a self-hosted
+[Duplicati OAuth handler](https://github.com/duplicati/oauth-handler), set
+`--oauth-url URL` or `MCT_BACKUP_OAUTH_URL` to its refresh URL.
 
 `login --source DIR --timezone Europe/London` configures defaults. An existing
-app-accessible repository can be selected with `--folder-id ID`. Recovery on a new
-machine requires `--key-file FILE` and the original OAuth client.
+repository can be selected with `--folder-id ID`. Recovery on a new machine
+requires `--key-file FILE` and a Duplicati sign-in with the same Google account.
+Because `drive.file` only exposes files created or opened by the sign-in, folders
+created by a previous own-client login are not visible. Logging in with an old
+configuration starts a new `mct-backup` folder and leaves the old folder untouched.
 
 ### Recovery key and local state
 
@@ -83,7 +74,7 @@ mct-backup status
 Keep a copy of the recovery key **outside the Minecraft server**. Without it,
 Drive data cannot be decrypted. Export refuses to overwrite an existing file.
 
-Configuration contains the OAuth refresh token and recovery key; it is stored
+Configuration contains the AuthID and recovery key; it is stored
 with mode `0600`, in a `0700` directory. Do not commit or share it. The default is
 the platform's user configuration directory (`~/.config/mct-backup` on Linux and
 `~/Library/Application Support/mct-backup` on macOS). Override with
@@ -270,9 +261,9 @@ make test
 Tests cover local end-to-end backup/restore, changed-region deduplication,
 point-in-time selection, concurrent mutation, interrupted pack and manifest
 uploads, cache reconstruction, wrong keys, corruption, retention, compaction,
-OAuth state/PKCE, and a simulated Drive API including resumed uploads/range reads.
+Duplicati AuthID refresh, and a simulated Drive API including resumed uploads/range reads.
 
-The 500GB live dataset and real Google authorization/upload have not been tested
+The 500GB live dataset and real Duplicati authorization/upload have not been tested
 by this build. Initial backup reads all selected bytes. Metadata manifests are
 complete and loaded in memory, so memory use scales with total file/chunk count;
 this format is not a constant-memory streaming tree. Measure peak RAM, duration,
@@ -282,8 +273,8 @@ a fixed storage bound. Check the Drive account's total storage and upload quota.
 
 ## References
 
-- [Google desktop OAuth / PKCE](https://developers.google.com/identity/protocols/oauth2/native-app)
-- [Google OAuth refresh-token expiration](https://developers.google.com/identity/protocols/oauth2#expiration)
+- [Duplicati OAuth handler](https://github.com/duplicati/oauth-handler)
+- [Google Drive file scope](https://developers.google.com/drive/api/guides/api-specific-auth)
 - [Drive resumable uploads and pre-generated IDs](https://developers.google.com/workspace/drive/api/guides/manage-uploads)
 - [Drive partial downloads](https://developers.google.com/workspace/drive/api/guides/manage-downloads)
 - [Drive usage limits](https://developers.google.com/workspace/drive/api/guides/limits)

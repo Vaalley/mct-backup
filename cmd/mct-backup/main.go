@@ -28,7 +28,7 @@ const help = `mct-backup — incremental Minecraft backups to Google Drive
 
 Usage: mct-backup [--config-dir DIR] COMMAND [options]
 
-  login          Guided Google Drive setup (browser or SSH tunnel)
+  login          Google Drive sign-in via Duplicati's OAuth service
   backup         Capture live files; upload only new encrypted chunks
   snapshots      List committed restore points
   ls             List files in a snapshot
@@ -142,6 +142,7 @@ func run(ctx context.Context, args []string, in io.Reader, out, log io.Writer) e
 			fmt.Fprintln(out, "Local repository:", c.LocalRepo)
 		} else {
 			fmt.Fprintf(out, "Google Drive: https://drive.google.com/drive/folders/%s\n", c.FolderID)
+			fmt.Fprintf(out, "Login: Duplicati OAuth service (%s)\n", auth.RefreshURL(c))
 		}
 		return nil
 	}
@@ -403,20 +404,16 @@ func storeFor(ctx context.Context, c *config.Config, dir string) (storage.Store,
 
 func login(ctx context.Context, dir string, args []string, in *bufio.Reader, out, log io.Writer) error {
 	f := flags("login", out)
-	credentials := f.String("credentials", "", "downloaded Google Desktop app client JSON")
-	noBrowser := f.Bool("no-browser", os.Getenv("SSH_CONNECTION") != "", "print SSH tunnel instructions instead of opening a browser")
-	port := f.Int("port", 0, "loopback callback port; 0 selects an available port")
-	host := f.String("ssh-host", "root@nb24cdc.mevnode.com", "SSH destination used in tunnel instructions")
+	authID := f.String("auth-id", "", "AuthID to use without prompting")
+	oauthURL := f.String("oauth-url", "", "Duplicati-compatible OAuth refresh URL")
+	noBrowser := f.Bool("no-browser", os.Getenv("SSH_CONNECTION") != "", "print the login URL instead of opening a browser")
 	folder := f.String("folder", "mct-backup", "repository folder name")
-	folderID := f.String("folder-id", "", "existing folder ID accessible to this OAuth client")
+	folderID := f.String("folder-id", "", "existing folder ID accessible to this Google account")
 	keyFile := f.String("key-file", "", "recovery key file for an existing repository")
 	source := f.String("source", "", "default live server directory")
 	zone := f.String("timezone", "", "calendar timezone (default Europe/London)")
 	if err := parse(f, args); err != nil {
 		return err
-	}
-	if *port < 0 || *port > 65535 {
-		return errors.New("port must be between 0 and 65535")
 	}
 	c, err := config.Load(dir)
 	if err != nil {
@@ -434,13 +431,16 @@ func login(ctx context.Context, dir string, args []string, in *bufio.Reader, out
 	if *zone != "" {
 		c.Timezone = *zone
 	}
+	if *oauthURL != "" {
+		c.OAuthURL = *oauthURL
+	}
 	if _, err = time.LoadLocation(c.Timezone); err != nil {
 		return err
 	}
-	if err = auth.Credentials(c, *credentials, in, out); err != nil {
+	if err = resetLegacyDrive(dir, c, out); err != nil {
 		return err
 	}
-	if err = auth.Login(ctx, c, out, *noBrowser, *port, *host); err != nil {
+	if err = auth.Login(c, in, out, *noBrowser, *authID); err != nil {
 		return err
 	}
 	// Save offline credentials before remote setup, so interrupted setup is recoverable.
@@ -515,6 +515,20 @@ func login(ctx context.Context, dir string, args []string, in *bufio.Reader, out
 		return err
 	}
 	fmt.Fprintf(out, "Login complete.\nDrive folder: https://drive.google.com/drive/folders/%s\nSource: %s\nNext: mct-backup export-key --out ./mct-backup-recovery-key.txt\nThen: mct-backup backup\n", c.FolderID, c.Source)
+	return nil
+}
+
+func resetLegacyDrive(dir string, c *config.Config, out io.Writer) error {
+	if c.LocalRepo != "" || c.FolderID == "" || c.AuthID != "" {
+		return nil
+	}
+	for _, name := range []string{"index.db", "spool", "uploads", "metadata-cache"} {
+		if err := os.RemoveAll(filepath.Join(dir, name)); err != nil {
+			return err
+		}
+	}
+	c.FolderID = ""
+	fmt.Fprintln(out, `The old Drive folder is left untouched but isn't visible to Duplicati's sign-in; a new "mct-backup" folder will be created.`)
 	return nil
 }
 

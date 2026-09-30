@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily Minecraft retention purge at 05:00 Europe/London
+
+[Timer]
+OnCalendar=*-*-* 05:00:00 Europe/London
+# Purge is optional maintenance; do not catch up near a backup after reboot.
+Persistent=false
+AccuracySec=1s
+Unit=mct-backup-purge.service
+
+[Install]
+WantedBy=timers.target

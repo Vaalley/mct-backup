@@ -1,0 +1,17 @@
+[Unit]
+Description=Daily Minecraft backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStartPre=/usr/bin/systemctl stop mct-backup-purge.service
+ExecStart=/usr/local/bin/mct-backup --config-dir /root/.config/mct-backup backup
+# Exit 2 means a snapshot committed with live-file capture warnings.
+SuccessExitStatus=2
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=infinity

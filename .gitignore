@@ -1,0 +1,7 @@
+/mct-backup
+/dist/
+/coverage.out
+*.db
+client_secret*.json
+*recovery-key*.txt
+.DS_Store

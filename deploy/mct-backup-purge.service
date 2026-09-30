@@ -1,0 +1,17 @@
+[Unit]
+Description=Minecraft backup retention purge
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+# Skip if a backup/restore already owns the repository; the CLI also locks it.
+ExecCondition=/usr/bin/flock -n /root/.config/mct-backup/process.lock /usr/bin/true
+ExecStart=/usr/local/bin/mct-backup --config-dir /root/.config/mct-backup purge --yes
+Nice=15
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=2h
+TimeoutStopSec=30s
